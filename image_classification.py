@@ -1,33 +1,31 @@
 import tensorflow as tf
 import numpy as np
-import cv2
+from PIL import Image
 
 
-def __read_image(filename, resize_height, resize_width, normalization=False):
-    """
-    读取图片数据,默认返回的是uint8,[0,255]
-    :param filename:
-    :param resize_height:
-    :param resize_width:
-    :param normalization:是否归一化到[0.,1.0]
-    :return: 返回的图片数据
-    """
-    bgr_image = cv2.imread(filename)
-    if len(bgr_image.shape) == 2:  # 若是灰度图则转为三通道
-        print("Warning:gray image", filename)
-        bgr_image = cv2.cvtColor(bgr_image, cv2.COLOR_GRAY2BGR)
+def __preprocess_image(image_path):
+    src_img = Image.open(image_path)
+    # print('src_image mode is:', src_img.mode)
+    width, height = src_img.size
+    if width > height:
+        diff = (width - height) // 2
+        cropped = src_img.crop((diff, 0, width - diff, height))
+    else:
+        diff = (height - width) // 2
+        cropped = src_img.crop((0, diff, width, height - diff))
+    cropped = cropped.resize((299, 299), Image.ANTIALIAS)
+    return cropped
 
-    rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)  # 将BGR转为RGB
-    # show_image(filename,rgb_image)
-    # rgb_image=Image.open(filename)
-    if resize_height > 0 and resize_width > 0:
-        rgb_image = cv2.resize(rgb_image, (resize_width, resize_height))
-    rgb_image = np.asanyarray(rgb_image)
+
+def __read_image(image_path, normalization=True):
+    image = __preprocess_image(image_path)
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    image = np.asanyarray(image)
     if normalization:
-        # 不能写成:rgb_image=rgb_image/255
-        rgb_image = rgb_image / 255.0
+        image = image / 255.0
     # show_image("src resize image",image)
-    return rgb_image
+    return image
 
 
 def do_classification(image_path):
@@ -50,7 +48,7 @@ def do_classification(image_path):
             output_tensor_name = sess.graph.get_tensor_by_name("InceptionV3/Logits/SpatialSqueeze:0")
 
             # 读取测试图片
-            im = __read_image(image_path, 299, 299, normalization=True)
+            im = __read_image(image_path, normalization=True)
             # print(im)
             # print(im.shape)
             im = im[np.newaxis, :]

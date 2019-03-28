@@ -2,6 +2,7 @@
   <dictionary name="Atlantis">
     <words>
       <w>addr</w>
+      <w>preprocess</w>
     </words>
   </dictionary>
 </component>
