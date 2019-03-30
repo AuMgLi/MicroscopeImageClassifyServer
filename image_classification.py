@@ -2,6 +2,8 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image
 
+ERR_CANNOT_IDENTIFY_IMAGE = -1
+
 
 def __preprocess_image(image_path):
     src_img = Image.open(image_path)
@@ -48,7 +50,11 @@ def do_classification(image_path):
             output_tensor_name = sess.graph.get_tensor_by_name("InceptionV3/Logits/SpatialSqueeze:0")
 
             # 读取测试图片
-            im = __read_image(image_path, normalization=True)
+            try:
+                im = __read_image(image_path, normalization=True)
+            except OSError as e:
+                print(e)
+                return ERR_CANNOT_IDENTIFY_IMAGE
             # print(im)
             # print(im.shape)
             im = im[np.newaxis, :]
@@ -64,4 +70,4 @@ def do_classification(image_path):
 
 
 if __name__ == '__main__':
-    print(do_classification('image/35995.jpg'))
+    print(do_classification('image/1553934433482983'))
