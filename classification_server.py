@@ -10,6 +10,7 @@ ERR_TIMEOUT_WHILE_RECV_DATA = -2
 ERR_MD5_INCONSISTENT = -3
 ERR_UNKNOWN_FILE_INFO = -4
 ERR_TIMEOUT_WHILE_RECV_INFO = -5
+ERR_UNKNOWN_ERROR = -6
 s = socket.socket()
 print(socket)
 IP_PORT = ('127.0.0.1', 5467)
@@ -22,22 +23,24 @@ def conn_thread(connection):
         connection.settimeout(40)
         file_info_size = struct.calcsize('l32s')
         # print('[server]', file_info_size)
-        data = connection.recv(file_info_size)  # 第一次接收待接收文件信息
+        data = connection.recv(file_info_size)  # 第一次接收待接收文件的大小及MD5信息
+        print('[server] data length:', len(data))
         try:
             file_size, md5 = struct.unpack('l32s', data)
             md5 = str(md5, encoding='utf8')
             print('[server] file size:', file_size, ', md5:', md5)
         except Exception as e:
             print(e)
-            server_msg = 'Unpackable file info. ' \
+            server_msg = 'server_response_code: [' + str(ERR_UNKNOWN_FILE_INFO) + ']. Unpackable file info. ' \
                          'Please send the file information in a structure format of ' \
-                         '{file size (int, 4 bytes); MD5 (32 bytes encoded in utf8)}.'
-            resp = struct.pack('l256s', ERR_UNKNOWN_FILE_INFO, bytes(server_msg, 'utf8'))
+                         '{file size (int, 4 bytes, little-endian); MD5 (32 bytes encoded in utf8)} first.'
+            resp = struct.pack('256s', bytes(server_msg, 'utf8'))
             connection.sendall(resp)
             connection.close()
             return
-        server_msg = 'Server is ready to receive a %d bytes image file.' % file_size
-        resp = struct.pack('l256s', 0, bytes(server_msg, 'utf8'))
+        server_msg = 'server_response_code: [' + str(0) + \
+                     ']. Server is ready to receive a %d bytes image file.' % file_size
+        resp = struct.pack('256s', bytes(server_msg, 'utf8'))
         connection.sendall(resp)
 
         file_name = str(time.time()).replace('.', '')
@@ -46,18 +49,29 @@ def conn_thread(connection):
         connection.settimeout(10)
         try:
             received_size = 0
-            while received_size != file_size:  # 第二次接收，开始接收文件数据
+            while received_size < file_size:  # 第二次接收，开始接收文件数据
                 data = connection.recv(1024)
                 file.write(data)
                 received_size += len(data)
             print('[server] File', file_path, 'has been successfully downloaded.')
         except socket.timeout as e:
             print(e)
-            server_msg = 'Server received a file_size value of ' + str(file_size) + \
+            server_msg = 'server_response_code: [' + str(ERR_TIMEOUT_WHILE_RECV_DATA) + \
+                         ']. Server received a file_size value of ' + str(file_size) + \
                          ', but timed out while receiving file data.'
-            resp = struct.pack('l256s', ERR_TIMEOUT_WHILE_RECV_DATA, bytes(server_msg, 'utf8'))
+            resp = struct.pack('256s', bytes(server_msg, 'utf8'))
             connection.sendall(resp)
             # print('[server] response sent')
+            connection.close()
+            file.close()
+            os.remove(file_path)
+            return
+        except Exception as e:
+            print(e)
+            server_msg = 'server_response_code: [' + str(ERR_UNKNOWN_ERROR) + \
+                         ']. Server meet an error: ' + str(e)
+            resp = struct.pack('256s', bytes(server_msg, 'utf8'))
+            connection.sendall(resp)
             connection.close()
             file.close()
             os.remove(file_path)
@@ -90,15 +104,18 @@ def conn_thread(connection):
             server_msg = 'The MD5 of files are inconsistent.'
         else:
             server_msg = 'Unknown error!'
-        resp = struct.pack('l256s', result_label, bytes(server_msg, 'utf8'))
+        server_msg = 'server_response_code: [' + str(result_label) + ']. ' + server_msg
+        print('[server] server msg:', server_msg)
+        resp = struct.pack('256s', bytes(server_msg, 'utf8'))
         connection.sendall(resp)
         connection.close()
         print('result label is', result_label)
         os.remove(file_path)
     except socket.timeout as e1:
         print(e1)
-        server_msg = 'Server timed out while receiving file info.'
-        resp = struct.pack('l256s', ERR_TIMEOUT_WHILE_RECV_INFO, bytes(server_msg, 'utf8'))
+        server_msg = 'server_response_code: [' + str(ERR_TIMEOUT_WHILE_RECV_INFO) + \
+                     ']. Server timed out while waiting to receive file info.'
+        resp = struct.pack('256s', bytes(server_msg, 'utf8'))
         connection.sendall(resp)
         connection.close()
     except socket.error as e2:

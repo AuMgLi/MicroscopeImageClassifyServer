@@ -28,12 +28,14 @@ while True:
     # 打包发送文件大小及MD5信息
     file_info = struct.pack('l32s', file_size, bytes(md5, 'utf8'))
     s.sendall(file_info)
-    resp_size = struct.calcsize('l256s')
+    resp_size = struct.calcsize('256s')
     server_resp = s.recv(resp_size)
-    resp_code, server_msg = struct.unpack('l256s', server_resp)
+    server_msg = struct.unpack('256s', server_resp)[0]
     server_msg = str(server_msg, encoding='utf8')
+    resp_code = server_msg[23]
+    # print('resp_code: ', resp_code)
     print(server_msg)
-    if resp_code != 0:
+    if resp_code != '0':
         break
 
     file = open(image, 'rb')
@@ -44,16 +46,17 @@ while True:
         sent_size += len(data)
     file.close()
     print('Upload successfully.')
-    resp_size = struct.calcsize('l256s')
+    resp_size = struct.calcsize('256s')
     server_resp = s.recv(resp_size)
-    label_result, server_msg = struct.unpack('l256s', server_resp)
+    server_msg = struct.unpack('256s', server_resp)[0]
     server_msg = str(server_msg, encoding='utf8')
-    print('[client] label result:', label_result)
-    if label_result == ERR_TIMEOUT_WHILE_SEND_DATA:
-        print(server_msg)
-        print('请注意上传数据的格式。')
-    elif label_result == ERR_CANNOT_IDENTIFY_IMAGE:
-        print(server_msg)
-    else:
-        print('classification label:', label_result, server_msg)
+    print('[client] Server message:', server_msg)
+    # print('[client] label result:', label_result)
+    # if label_result == ERR_TIMEOUT_WHILE_SEND_DATA:
+    #     print(server_msg.strip())
+    #     print('请注意上传数据的格式。')
+    # elif label_result == ERR_CANNOT_IDENTIFY_IMAGE:
+    #     print(server_msg.strip())
+    # else:
+    #     print('classification label:', label_result, server_msg)
     break
